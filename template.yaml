@@ -1,0 +1,125 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: English Learning MCP - Remote Server
+
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 256
+    Runtime: python3.12
+
+Parameters:
+  DefaultUserId:
+    Type: String
+    Default: default_user
+    Description: Default user ID for single-user mode
+
+Resources:
+  # DynamoDB Tables
+  PhrasesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: english-phrases
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: user_id
+          AttributeType: S
+        - AttributeName: phrase_id
+          AttributeType: S
+        - AttributeName: created_at
+          AttributeType: S
+        - AttributeName: reviewed_at
+          AttributeType: S
+      KeySchema:
+        - AttributeName: user_id
+          KeyType: HASH
+        - AttributeName: phrase_id
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: UserCreatedIndex
+          KeySchema:
+            - AttributeName: user_id
+              KeyType: HASH
+            - AttributeName: created_at
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        - IndexName: UserReviewIndex
+          KeySchema:
+            - AttributeName: user_id
+              KeyType: HASH
+            - AttributeName: reviewed_at
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  CorrectionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: english-corrections
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: user_id
+          AttributeType: S
+        - AttributeName: correction_id
+          AttributeType: S
+        - AttributeName: created_at
+          AttributeType: S
+      KeySchema:
+        - AttributeName: user_id
+          KeyType: HASH
+        - AttributeName: correction_id
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: UserCreatedIndex
+          KeySchema:
+            - AttributeName: user_id
+              KeyType: HASH
+            - AttributeName: created_at
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  # Lambda Function
+  EnglishLearningMCPFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: english-learning-mcp
+      CodeUri: .
+      Handler: lambda_function.lambda_handler
+      Environment:
+        Variables:
+          DEFAULT_USER_ID: !Ref DefaultUserId
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref PhrasesTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref CorrectionsTable
+      FunctionUrlConfig:
+        AuthType: NONE
+        Cors:
+          AllowOrigins:
+            - "*"
+          AllowMethods:
+            - POST
+            - GET
+          AllowHeaders:
+            - Content-Type
+          MaxAge: 300
+
+Outputs:
+  FunctionUrl:
+    Description: "Function URL for English Learning MCP"
+    Value: !GetAtt EnglishLearningMCPFunctionUrl.FunctionUrl
+  
+  FunctionArn:
+    Description: "Lambda Function ARN"
+    Value: !GetAtt EnglishLearningMCPFunction.Arn
+  
+  PhrasesTableName:
+    Description: "Phrases DynamoDB Table Name"
+    Value: !Ref PhrasesTable
+  
+  CorrectionsTableName:
+    Description: "Corrections DynamoDB Table Name"
+    Value: !Ref CorrectionsTable
