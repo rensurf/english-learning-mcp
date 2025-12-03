@@ -1,252 +1,182 @@
-import json
 import os
-from typing import Any, Dict, List
+from awslabs.mcp_lambda_handler import MCPLambdaHandler
 from dynamodb_helper import DynamoDBHelper
 
 
-# Initialize DynamoDB helper
+# Initialize
 db = DynamoDBHelper(region_name=os.environ.get('AWS_REGION', 'ap-northeast-1'))
 DEFAULT_USER_ID = os.environ.get('DEFAULT_USER_ID', 'default_user')
 
-
-def create_response(status_code: int, body: Dict) -> Dict:
-    """Create Lambda response"""
-    return {
-        'statusCode': status_code,
-        'headers': {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'POST, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type'
-        },
-        'body': json.dumps(body, ensure_ascii=False)
-    }
+mcp = MCPLambdaHandler(
+    name="english-learning-mcp",
+    version="1.0.0"
+)
 
 
-def handle_tool_call(tool_name: str, arguments: Dict) -> Dict:
-    """Handle MCP tool calls"""
-    user_id = arguments.get('user_id', DEFAULT_USER_ID)
+@mcp.tool()
+def save_phrase(english: str, japanese: str, context: str = "") -> str:
+    """Save a new English phrase with Japanese translation.
     
-    try:
-        if tool_name == 'save_phrase':
-            result = db.save_phrase(
-                user_id=user_id,
-                english=arguments['english'],
-                japanese=arguments['japanese'],
-                context=arguments.get('context', '')
-            )
-            return {
-                'success': True,
-                'message': f"Phrase saved: {arguments['english']}",
-                'data': result
-            }
-        
-        elif tool_name == 'list_phrases':
-            phrases = db.list_phrases(
-                user_id=user_id,
-                limit=arguments.get('limit', 50),
-                order=arguments.get('order', 'desc')
-            )
-            return {
-                'success': True,
-                'count': len(phrases),
-                'phrases': phrases
-            }
-        
-        elif tool_name == 'search_phrases':
-            phrases = db.search_phrases(
-                user_id=user_id,
-                keyword=arguments['keyword'],
-                limit=arguments.get('limit', 20)
-            )
-            return {
-                'success': True,
-                'count': len(phrases),
-                'keyword': arguments['keyword'],
-                'phrases': phrases
-            }
-        
-        elif tool_name == 'get_review_priority':
-            phrases = db.get_review_priority(
-                user_id=user_id,
-                limit=arguments.get('limit', 20)
-            )
-            return {
-                'success': True,
-                'count': len(phrases),
-                'phrases': phrases
-            }
-        
-        elif tool_name == 'save_correction':
-            result = db.save_correction(
-                user_id=user_id,
-                original_text=arguments['original_text'],
-                corrected_text=arguments['corrected_text'],
-                feedback=arguments['feedback'],
-                error_pattern=arguments.get('error_pattern', '')
-            )
-            return {
-                'success': True,
-                'message': 'Correction saved',
-                'data': result
-            }
-        
-        elif tool_name == 'analyze_weaknesses':
-            analysis = db.analyze_weaknesses(
-                user_id=user_id,
-                limit=arguments.get('limit', 10)
-            )
-            return {
-                'success': True,
-                'analysis': analysis
-            }
-        
-        else:
-            return {
-                'success': False,
-                'error': f'Unknown tool: {tool_name}'
-            }
-    
-    except KeyError as e:
-        return {
-            'success': False,
-            'error': f'Missing required argument: {str(e)}'
-        }
-    except Exception as e:
-        return {
-            'success': False,
-            'error': f'Error executing tool: {str(e)}'
-        }
-
-
-def lambda_handler(event: Dict[str, Any], context: Any) -> Dict:
+    Args:
+        english: English phrase
+        japanese: Japanese translation
+        context: Usage context or example sentence
     """
-    Lambda handler for MCP requests
+    result = db.save_phrase(
+        user_id=DEFAULT_USER_ID,
+        english=english,
+        japanese=japanese,
+        context=context
+    )
+    return f"✅ Phrase saved: {english} = {japanese}"
+
+
+@mcp.tool()
+def list_phrases(limit: int = 50, order: str = 'desc') -> str:
+    """List saved phrases.
     
-    Expected event format:
-    {
-        "method": "tools/call",
-        "params": {
-            "name": "save_phrase",
-            "arguments": {
-                "english": "break the ice",
-                "japanese": "打ち解ける",
-                "context": "..."
-            }
-        }
-    }
+    Args:
+        limit: Number of phrases to return (default: 50)
+        order: Sort order - 'asc' or 'desc' (default: 'desc')
     """
-    # Handle OPTIONS for CORS
-    if event.get('requestContext', {}).get('http', {}).get('method') == 'OPTIONS':
-        return create_response(200, {'message': 'OK'})
+    phrases = db.list_phrases(
+        user_id=DEFAULT_USER_ID,
+        limit=limit,
+        order=order
+    )
     
-    try:
-        # Parse body if it's a string
-        if isinstance(event.get('body'), str):
-            body = json.loads(event['body'])
-        else:
-            body = event.get('body', event)
-        
-        method = body.get('method')
-        params = body.get('params', {})
-        
-        if method == 'tools/list':
-            # Return available tools
-            tools = [
-                {
-                    'name': 'save_phrase',
-                    'description': 'Save a new English phrase with Japanese translation',
-                    'inputSchema': {
-                        'type': 'object',
-                        'properties': {
-                            'english': {'type': 'string', 'description': 'English phrase'},
-                            'japanese': {'type': 'string', 'description': 'Japanese translation'},
-                            'context': {'type': 'string', 'description': 'Usage context'}
-                        },
-                        'required': ['english', 'japanese']
-                    }
-                },
-                {
-                    'name': 'list_phrases',
-                    'description': 'List saved phrases',
-                    'inputSchema': {
-                        'type': 'object',
-                        'properties': {
-                            'limit': {'type': 'number', 'description': 'Number of phrases to return'},
-                            'order': {'type': 'string', 'enum': ['asc', 'desc'], 'description': 'Sort order'}
-                        }
-                    }
-                },
-                {
-                    'name': 'search_phrases',
-                    'description': 'Search phrases by keyword',
-                    'inputSchema': {
-                        'type': 'object',
-                        'properties': {
-                            'keyword': {'type': 'string', 'description': 'Search keyword'},
-                            'limit': {'type': 'number', 'description': 'Number of results'}
-                        },
-                        'required': ['keyword']
-                    }
-                },
-                {
-                    'name': 'get_review_priority',
-                    'description': 'Get phrases that need review',
-                    'inputSchema': {
-                        'type': 'object',
-                        'properties': {
-                            'limit': {'type': 'number', 'description': 'Number of phrases to return'}
-                        }
-                    }
-                },
-                {
-                    'name': 'save_correction',
-                    'description': 'Save an English correction',
-                    'inputSchema': {
-                        'type': 'object',
-                        'properties': {
-                            'original_text': {'type': 'string', 'description': 'Original text'},
-                            'corrected_text': {'type': 'string', 'description': 'Corrected text'},
-                            'feedback': {'type': 'string', 'description': 'Feedback'},
-                            'error_pattern': {'type': 'string', 'description': 'Error pattern/type'}
-                        },
-                        'required': ['original_text', 'corrected_text', 'feedback']
-                    }
-                },
-                {
-                    'name': 'analyze_weaknesses',
-                    'description': 'Analyze common error patterns',
-                    'inputSchema': {
-                        'type': 'object',
-                        'properties': {
-                            'limit': {'type': 'number', 'description': 'Number of patterns to return'}
-                        }
-                    }
-                }
-            ]
-            return create_response(200, {'tools': tools})
-        
-        elif method == 'tools/call':
-            # Handle tool call
-            tool_name = params.get('name')
-            arguments = params.get('arguments', {})
-            
-            result = handle_tool_call(tool_name, arguments)
-            return create_response(200, result)
-        
-        else:
-            return create_response(400, {
-                'success': False,
-                'error': f'Unknown method: {method}'
-            })
+    if not phrases:
+        return "No phrases found."
     
-    except json.JSONDecodeError as e:
-        return create_response(400, {
-            'success': False,
-            'error': f'Invalid JSON: {str(e)}'
-        })
-    except Exception as e:
-        return create_response(500, {
-            'success': False,
-            'error': f'Internal error: {str(e)}'
-        })
+    text = f"Found {len(phrases)} phrases:\n\n"
+    for i, p in enumerate(phrases[:20], 1):
+        text += f"{i}. {p['english']} = {p['japanese']}\n"
+        if p.get('context'):
+            text += f"   Context: {p['context']}\n"
+        text += "\n"
+    
+    if len(phrases) > 20:
+        text += f"... and {len(phrases) - 20} more phrases"
+    
+    return text
+
+
+@mcp.tool()
+def search_phrases(keyword: str, limit: int = 20) -> str:
+    """Search phrases by keyword.
+    
+    Args:
+        keyword: Search keyword (searches in English, Japanese, and context)
+        limit: Maximum number of results (default: 20)
+    """
+    phrases = db.search_phrases(
+        user_id=DEFAULT_USER_ID,
+        keyword=keyword,
+        limit=limit
+    )
+    
+    if not phrases:
+        return f"No phrases found matching '{keyword}'."
+    
+    text = f"Found {len(phrases)} matches for '{keyword}':\n\n"
+    for i, p in enumerate(phrases, 1):
+        text += f"{i}. {p['english']} = {p['japanese']}\n"
+        if p.get('context'):
+            text += f"   Context: {p['context']}\n"
+        text += "\n"
+    
+    return text
+
+
+@mcp.tool()
+def get_review_priority(limit: int = 20) -> str:
+    """Get phrases that need review.
+    
+    Args:
+        limit: Number of phrases to return (default: 20)
+    """
+    phrases = db.get_review_priority(
+        user_id=DEFAULT_USER_ID,
+        limit=limit
+    )
+    
+    if not phrases:
+        return "No phrases need review. Great job!"
+    
+    text = f"📚 {len(phrases)} phrases need review:\n\n"
+    for i, p in enumerate(phrases, 1):
+        text += f"{i}. {p['english']} = {p['japanese']}\n"
+        text += f"   Queried: {p.get('query_count', 0)} times\n"
+        if p.get('context'):
+            text += f"   Context: {p['context']}\n"
+        text += "\n"
+    
+    return text
+
+
+@mcp.tool()
+def save_correction(
+    original_text: str,
+    corrected_text: str,
+    feedback: str,
+    error_pattern: str = ""
+) -> str:
+    """Save an English correction.
+    
+    Args:
+        original_text: Original (incorrect) text
+        corrected_text: Corrected text
+        feedback: Explanation of the correction
+        error_pattern: Type of error (e.g., 'grammar', 'tense', 'spelling')
+    """
+    result = db.save_correction(
+        user_id=DEFAULT_USER_ID,
+        original_text=original_text,
+        corrected_text=corrected_text,
+        feedback=feedback,
+        error_pattern=error_pattern
+    )
+    
+    text = "✅ Correction saved\n\n"
+    text += f"Before: {original_text}\n"
+    text += f"After: {corrected_text}\n"
+    text += f"Feedback: {feedback}"
+    
+    if error_pattern:
+        text += f"\nError type: {error_pattern}"
+    
+    return text
+
+
+@mcp.tool()
+def analyze_weaknesses(limit: int = 10) -> str:
+    """Analyze common error patterns from corrections.
+    
+    Args:
+        limit: Number of top patterns to return (default: 10)
+    """
+    analysis = db.analyze_weaknesses(
+        user_id=DEFAULT_USER_ID,
+        limit=limit
+    )
+    
+    text = "📊 Weakness Analysis\n\n"
+    text += f"Total corrections: {analysis['total_corrections']}\n\n"
+    
+    if analysis['common_patterns']:
+        text += "Common error patterns:\n"
+        for i, p in enumerate(analysis['common_patterns'], 1):
+            text += f"{i}. {p['pattern']}: {p['count']} times\n"
+        text += "\n"
+    
+    if analysis['recent_corrections']:
+        text += "Recent corrections:\n"
+        for i, c in enumerate(analysis['recent_corrections'][:3], 1):
+            text += f"{i}. {c['original_text']} → {c['corrected_text']}\n"
+    
+    return text
+
+
+def lambda_handler(event, context):
+    """AWS Lambda handler function."""
+    return mcp.handle_request(event, context)
