@@ -5,7 +5,7 @@ stack_name = "english-learning-mcp"
 resolve_s3 = true
 s3_prefix = "english-learning-mcp"
 region = "ap-northeast-1"
-confirm_changeset = true
+confirm_changeset = false
 capabilities = "CAPABILITY_IAM"
 parameter_overrides = "DefaultUserId=\"default_user\""
 image_repositories = []

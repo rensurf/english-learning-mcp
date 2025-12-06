@@ -45,7 +45,7 @@ class DynamoDBHelper:
             'created_at': now,
             'query_count': 0,
             'last_queried_at': None,
-            'reviewed_at': None
+            'reviewed_at': now
         }
         
         self.phrases_table.put_item(Item=item)
@@ -151,7 +151,7 @@ class DynamoDBHelper:
             'feedback': feedback,
             'error_pattern': error_pattern,
             'created_at': now,
-            'reviewed_at': None
+            'reviewed_at': now
         }
         
         self.corrections_table.put_item(Item=item)
