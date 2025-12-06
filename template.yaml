@@ -80,7 +80,7 @@ Resources:
           Projection:
             ProjectionType: ALL
 
-  # Lambda Function
+  # Lambda Function - MCP Server
   EnglishLearningMCPFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -107,6 +107,38 @@ Resources:
             - Content-Type
           MaxAge: 300
 
+  # Lambda Function - LINE Notifier
+  LineNotifierFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: english-learning-line-notifier
+      CodeUri: .
+      Handler: line_notifier_lambda.lambda_handler
+      Timeout: 60
+      Environment:
+        Variables:
+          DEFAULT_USER_ID: !Ref DefaultUserId
+          LINE_CHANNEL_ID: '{{resolve:ssm:/english-learning-mcp/line-channel-id}}'
+          LINE_KID: '{{resolve:ssm:/english-learning-mcp/line-kid}}'
+          LINE_USER_ID: '{{resolve:ssm:/english-learning-mcp/line-user-id}}'
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref PhrasesTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref CorrectionsTable
+        - Statement:
+            - Effect: Allow
+              Action:
+                - ssm:GetParameter
+              Resource: !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/english-learning-mcp/*'
+      Events:
+        DailySchedule:
+          Type: Schedule
+          Properties:
+            Schedule: cron(0 14 * * ? *)
+            Description: Send daily English learning summary to LINE
+            Enabled: true
+
 Outputs:
   FunctionUrl:
     Description: "Function URL for English Learning MCP"
@@ -123,3 +155,7 @@ Outputs:
   CorrectionsTableName:
     Description: "Corrections DynamoDB Table Name"
     Value: !Ref CorrectionsTable
+  
+  LineNotifierFunctionArn:
+    Description: "LINE Notifier Lambda Function ARN"
+    Value: !GetAtt LineNotifierFunction.Arn
