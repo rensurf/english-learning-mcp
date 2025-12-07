@@ -1,15 +1,13 @@
 [project]
 name = "english-learning-mcp"
 version = "0.1.0"
-description = "Add your description here"
+description = "Serverless English learning MCP server on AWS Lambda with DynamoDB and LINE notifications"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "boto3>=1.35.0",
     "cryptography>=46.0.3",
-    "fastapi>=0.123.4",
-    "fastmcp>=2.13.1",
     "pyjwt>=2.10.1",
     "python-dotenv>=1.2.1",
     "requests>=2.32.5",
-    "uvicorn>=0.38.0",
 ]
