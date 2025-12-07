@@ -13,11 +13,23 @@ Parameters:
     Type: String
     Default: default_user
     Description: Default user ID for single-user mode
+  
+  ImportExistingTables:
+    Type: String
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Description: Set to true if DynamoDB tables already exist
+
+Conditions:
+  CreateTables: !Equals [!Ref ImportExistingTables, 'false']
 
 Resources:
   # DynamoDB Tables
   PhrasesTable:
     Type: AWS::DynamoDB::Table
+    Condition: CreateTables
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
@@ -57,6 +69,7 @@ Resources:
 
   CorrectionsTable:
     Type: AWS::DynamoDB::Table
+    Condition: CreateTables
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
     Properties:
@@ -96,9 +109,9 @@ Resources:
           DEFAULT_USER_ID: !Ref DefaultUserId
       Policies:
         - DynamoDBCrudPolicy:
-            TableName: !Ref PhrasesTable
+            TableName: english-phrases
         - DynamoDBCrudPolicy:
-            TableName: !Ref CorrectionsTable
+            TableName: english-corrections
       FunctionUrlConfig:
         AuthType: NONE
         Cors:
@@ -127,9 +140,9 @@ Resources:
           LINE_USER_ID: '{{resolve:ssm:/english-learning-mcp/line-user-id}}'
       Policies:
         - DynamoDBReadPolicy:
-            TableName: !Ref PhrasesTable
+            TableName: english-phrases
         - DynamoDBReadPolicy:
-            TableName: !Ref CorrectionsTable
+            TableName: english-corrections
         - Statement:
             - Effect: Allow
               Action:
@@ -168,11 +181,11 @@ Outputs:
   
   PhrasesTableName:
     Description: "Phrases DynamoDB Table Name"
-    Value: !Ref PhrasesTable
-  
+    Value: english-phrases
+
   CorrectionsTableName:
     Description: "Corrections DynamoDB Table Name"
-    Value: !Ref CorrectionsTable
+    Value: english-corrections
   
   LineNotifierFunctionArn:
     Description: "LINE Notifier Lambda Function ARN"
