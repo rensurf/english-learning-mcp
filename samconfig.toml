@@ -7,7 +7,7 @@ s3_prefix = "english-learning-mcp"
 region = "ap-northeast-1"
 confirm_changeset = false
 capabilities = "CAPABILITY_IAM"
-parameter_overrides = "DefaultUserId=\"default_user\""
+parameter_overrides = "DefaultUserId=\"default_user\" ImportExistingTables=\"true\""
 image_repositories = []
 
 [default.global.parameters]
